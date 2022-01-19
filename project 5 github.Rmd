@@ -1,0 +1,126 @@
+---
+title: Mini Project #5
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ISLR)
+library(boot)
+library(caret)
+library(corrplot)
+library(FactoMineR)
+library(factoextra)
+```
+
+#1b
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+data <- Hitters
+data <- na.omit(data)
+data <- fastDummies::dummy_cols(data)
+data <- within(data, rm(NewLeague, League, Division))
+dataset1 <- within(data, rm(Salary))
+dataset2 <- data
+dataset1 <- as.data.frame(scale(dataset1))
+
+pca <- prcomp(data, center = T, scale = T)
+names(pca)
+
+# checking that std is 0
+xSTD <- apply(data, 2, function(x){(x-mean(x))/sd(x)})
+max(abs(pca$x - (xSTD %*% pca$rotation)))
+
+# covariance of matrix
+round(cov(pca$x), 3)
+
+# PVE
+pcVAR <- pca$sdev^2
+pve <- pcVAR/sum(pcVAR)
+pve
+cumsum(pve)
+
+# scree plot
+plot(pve, xlab = "Principal Component", ylab = "Proportion of Variance Explained", ylim = c(0,1), type = 'b')
+
+# cumulitive PVE plot
+plot(cumsum(pve), xlab = "Principal Component", ylab = "Cumulative Proportion of Variance Explained", ylim = c(0,1), type = 'b')
+```
+#1c
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+# biplot
+biplot(pca, scale=0)
+# biplot with opposite direction
+pca$rotation <- -pca$rotation
+pca$x <- -pca$x
+pca$rotation
+biplot(pca, scale=0)
+
+newPCA <- PCA(dataset1)
+fviz_eig(newPCA, addlabels = TRUE, ylim = c(0, 50))
+fviz_pca_var(newPCA, col.var = "black")
+corrplot(newPCA$var$cor[,1:2], is.corr = T, cl.align.text = 'l')
+```
+
+#2c
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+library(dplyr)
+library(tidyr)
+df <- drop_na(Hitters)
+df <- fastDummies::dummy_cols(df)
+df <- within(df, rm(NewLeague, Division, League))
+newDF <- as.data.frame(scale(within(df, rm(Salary))))
+
+hcComplete <- hclust(dist(newDF, method="euclidean"), method = "complete")
+df$cutree <- cutree(hcComplete, 2)
+
+cluster1 <- df[df$cutree == 1, ]
+cluster2 <- df[df$cutree == 2, ]
+
+means1 <- colMeans(cluster1)
+means2 <- colMeans(cluster2)
+
+finalDF <- data.frame(means1, means2)
+
+print(finalDF)
+plot(hcComplete, main = "Complete Linkage", xlab = "", sub = "", cex = 0.7)
+```
+#2d
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+km.out <- kmeans(df, 2)
+print(km.out)
+```
+
+#3a
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+# specifying training method
+train_control <- trainControl(method="LOOCV")
+
+lModel <- train(log(Salary) ~ ., data = dataset2, method = "lm", trControl = train_control)
+lmMSE <- lModel$results[["RMSE"]]^2
+
+cat("Test MSE: ", lmMSE)
+```
+
+#3b
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+pcrModel <- train(log(Salary) ~ ., data = dataset2, method = "pcr", trControl = train_control)
+pcrMSE <- mean(pcrModel$results[["RMSE"]])^2
+
+cat("Test MSE: ", pcrMSE)
+```
+
+#3c
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+plsModel <- train(log(Salary) ~ ., data = dataset2, method = "pls", trControl = train_control)
+plsMSE <- mean(plsModel$results[["RMSE"]])^2
+
+cat("Test MSE: ", plsMSE)
+```
+
+#3d
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+ridgeModel <- train(log(Salary) ~ ., data = dataset2, method = "glmnet", trControl = train_control)
+ridgeMSE <- mean(ridgeModel$results[["RMSE"]])^2
+
+cat("Test MSE: ", ridgeMSE)
+```
